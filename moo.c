@@ -9,7 +9,6 @@
 #define DEFAULTCODELEN 4
 
 char code[MAXCODELEN + 1];          /* stores the current secret code */
-size_t codelen = DEFAULTCODELEN;    /* stores the amount of digits in the code */
 
 /**
   * handles errors when using input to determine codelen
@@ -21,9 +20,10 @@ size_t normalizecodelen(int digits);
 /**
   * run a game of Bulls and Cows
   * https://en.wikipedia.org/wiki/Bulls_and_cows
+  * @param codelen normalized code length in [1, MAXCODELEN]
   * @return negative if error, zero if user wins, positive if user loses
   */
-int bullscows(void);
+int bullscows(size_t codelen);
 
 int main(int argc, char **argv)
 {
@@ -32,13 +32,10 @@ int main(int argc, char **argv)
     if (argc > 1)
     {
         while (*++argv)
-        {
-            codelen = normalizecodelen(atoi(*argv));
-            if (bullscows() < 0)
+            if (bullscows(normalizecodelen(atoi(*argv))) < 0)
                 return 1;
-        }
     }
-    else if (bullscows() < 0)
+    else if (bullscows(DEFAULTCODELEN) < 0)
         return 1;
 
     return 0;
@@ -54,12 +51,11 @@ size_t normalizecodelen(int digits)
     return digits;
 }
 
-int gencode(void)
+int gencode(size_t codelen)
 {
     Set space;
     char *ptr;
     char picked;
-    size_t digits;
 
     if ((space = newset()) == NULL)
     {
@@ -76,8 +72,7 @@ int gencode(void)
         }
 
     ptr = code;
-    digits = codelen;
-    while (digits-- > 0)
+    while (codelen-- > 0)
     {
         picked = getnth(space, rand());
         *ptr++ = picked;
@@ -88,13 +83,13 @@ int gencode(void)
     return 0;
 }
 
-int bullscows(void)
+int bullscows(size_t codelen)
 {
     Set guessed;
     int ch;
     unsigned int bulls, cows;
 
-    if (gencode() != 0)
+    if (gencode(codelen) != 0)
         return -1;
 
     if ((guessed = newset()) == NULL)
