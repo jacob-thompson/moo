@@ -34,11 +34,11 @@ int main(int argc, char **argv)
         while (*++argv)
         {
             codelen = normalizecodelen(atoi(*argv));
-            if (bullscows() != 0)
+            if (bullscows() < 0)
                 return 1;
         }
     }
-    else if (bullscows() != 0)
+    else if (bullscows() < 0)
         return 1;
 
     return 0;
