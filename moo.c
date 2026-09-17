@@ -1,4 +1,5 @@
 #include <ctype.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
@@ -7,8 +8,17 @@
 
 #define MAXCODELEN 10
 #define DEFAULTCODELEN 4
+#define MAXPLAYERS 8
+#define DEFAULTPLAYERS 2
 
 char code[MAXCODELEN + 1];          /* stores the current secret code */
+
+/**
+  * handles errors when using input to determine playercount
+  * @param count integer conversion of player count; (inf, inf)
+  * @return player count in range [1, MAXPLAYERS]
+  */
+unsigned short normalizeplayercount(int count);
 
 /**
   * handles errors when using input to determine codelen
@@ -20,25 +30,43 @@ size_t normalizecodelen(int digits);
 /**
   * run a game of Bulls and Cows
   * https://en.wikipedia.org/wiki/Bulls_and_cows
+  * @param players player count
   * @param codelen normalized code length in [1, MAXCODELEN]
-  * @return negative if error, zero if user wins, positive if user loses
+  * @return negative if error, or nonzero otherwise
   */
-int bullscows(size_t codelen);
+int bullscows(unsigned short players, size_t codelen);
 
 int main(int argc, char **argv)
 {
+    unsigned short players;
+
     srand(time(NULL));
 
+    players = DEFAULTPLAYERS;
     if (argc > 1)
     {
         while (*++argv)
-            if (bullscows(normalizecodelen(atoi(*argv))) < 0)
+        {
+            if (**argv == '+')
+                players = normalizeplayercount(atoi((*argv) + 1));
+            else if (bullscows(players, normalizecodelen(atoi(*argv))) < 0)
                 return 1;
+        }
     }
-    else if (bullscows(DEFAULTCODELEN) < 0)
+    else if (bullscows(players, DEFAULTCODELEN) < 0)
         return 1;
 
     return 0;
+}
+
+unsigned short normalizeplayercount(int count)
+{
+    if (count <= 0)
+        return 1;
+    else if (count > MAXCODELEN)
+        return DEFAULTPLAYERS;
+
+    return count;
 }
 
 size_t normalizecodelen(int digits)
@@ -83,14 +111,19 @@ int gencode(size_t codelen)
     return 0;
 }
 
-int bullscows(size_t codelen)
+int bullscows(unsigned short players, size_t codelen)
 {
     Set guessed;
     int ch;
+    unsigned short currentplayer, winningplayer;
+    unsigned int numguesses, minguesses;
     unsigned int bulls, cows;
+    const char line[] = "============";
 
-    if (gencode(codelen) != 0)
-        return -1;
+    printf("%s ", line);
+    printf("BULLS AND COWS ");
+    printf("(CODE LENGTH: %lu) ", codelen);
+    printf("%s\n", line);
 
     if ((guessed = newset()) == NULL)
     {
@@ -98,38 +131,74 @@ int bullscows(size_t codelen)
         return -1;
     }
 
-    for (bulls = cows = 0; bulls < codelen; )
+    minguesses = UINT_MAX;
+    for (currentplayer = 1; currentplayer <= players; ++currentplayer)
     {
-        bulls = cows = 0;
-
-        /* get a set of unique digits, representing the guess */
-        clearset(guessed);
-        while (lengthofset(guessed) < codelen)
+        if (gencode(codelen) != 0)
         {
-            while ((ch = getchar()) != EOF && (isspace(ch) || !isdigit(ch)))
-                ;
-            if (ch == EOF)
-                return -1;
-            addtoset(guessed, ch);
+            freeset(&guessed);
+            return -1;
         }
 
-        /* compare the set of unique digits against the code */
-        for (size_t i = 0; i < codelen; ++i)
-            if (code[i] == peeknth(guessed, i))
-                ++bulls;
-            else if (digitinset(guessed, code[i]))
-                ++cows;
+        printf("PLAYER %hu:\n", currentplayer);
 
-        /* inform the user of the result */
-        printf("%u bull", bulls);
-        if (bulls != 1)
-            putchar('s');
-        printf(" and %u cow", cows);
-        if (cows != 1)
-            putchar('s');
-        putchar('\n');
+        numguesses = 0;
+        for (bulls = cows = 0; bulls < codelen; ++numguesses)
+        {
+            bulls = cows = 0;
+
+            printf(" > ");
+
+            /* get a set of unique digits, representing the guess */
+            clearset(guessed);
+            while (lengthofset(guessed) < codelen)
+            {
+                while ((ch = getchar()) != EOF && (isspace(ch) || !isdigit(ch)))
+                    ;
+                if (ch == EOF)
+                {
+                    freeset(&guessed);
+                    return -1;
+                }
+                addtoset(guessed, ch);
+            }
+
+            /* compare the set of unique digits against the code */
+            for (size_t i = 0; i < codelen; ++i)
+                if (code[i] == peeknth(guessed, i))
+                    ++bulls;
+                else if (digitinset(guessed, code[i]))
+                    ++cows;
+
+            /* inform the user of the result */
+            printf(" >> ");
+            printf("%u bull", bulls);
+            if (bulls != 1)
+                putchar('s');
+            printf(" and %u cow", cows);
+            if (cows != 1)
+                putchar('s');
+            putchar('\n');
+        }
+
+        if (numguesses < minguesses)
+        {
+            minguesses = numguesses;
+            winningplayer = currentplayer;
+        }
     }
 
+    if (players > 1)
+        printf("PLAYER %hu WON IN %u GUESS", winningplayer, minguesses);
+    else
+        printf("CODE FOUND IN %u GUESS", minguesses);
+    if (minguesses != 1)
+    {
+        putchar('E');
+        putchar('S');
+    }
+    putchar('\n');
+
     freeset(&guessed);
-    return 0;
+    return winningplayer;
 }
