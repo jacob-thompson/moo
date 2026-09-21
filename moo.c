@@ -10,6 +10,7 @@
 #define DEFAULTCODELEN 4
 #define MAXPLAYERS 8
 #define DEFAULTPLAYERS 2
+#define MAXGAMES 25
 
 char code[MAXCODELEN + 1];          /* stores the current secret code */
 
@@ -39,22 +40,25 @@ int bullscows(unsigned short players, size_t codelen);
 int main(int argc, char **argv)
 {
     unsigned short players;
+    static size_t codelen[MAXGAMES];
+    int iter = 0;
 
     srand(time(NULL));
 
-    players = DEFAULTPLAYERS;
+    players     = DEFAULTPLAYERS;
+    codelen[0]  = DEFAULTCODELEN;
     if (argc > 1)
-    {
         while (*++argv)
         {
             if (**argv == '+')
                 players = normalizeplayercount(atoi((*argv) + 1));
-            else if (bullscows(players, normalizecodelen(atoi(*argv))) < 0)
-                return 1;
+            else if (iter < MAXGAMES)
+                codelen[iter++] = normalizecodelen(atoi(*argv));
         }
-    }
-    else if (bullscows(players, DEFAULTCODELEN) < 0)
-        return 1;
+
+    for (size_t *p = codelen; *p; ++p)
+        if (bullscows(players, *p) < 0)
+            return 1;
 
     return 0;
 }
@@ -119,6 +123,8 @@ int bullscows(unsigned short players, size_t codelen)
     unsigned int numguesses, minguesses;
     unsigned int bulls, cows;
     const char line[] = "============";
+    const char input[] = " < ";
+    const char output[] = " > ";
 
     printf("%s ", line);
     printf("BULLS AND COWS ");
@@ -147,21 +153,27 @@ int bullscows(unsigned short players, size_t codelen)
         {
             bulls = cows = 0;
 
-            printf(" > ");
+            printf(input);
 
             /* get a set of unique digits, representing the guess */
             clearset(guessed);
             while (lengthofset(guessed) < codelen)
             {
-                while ((ch = getchar()) != EOF && (isspace(ch) || !isdigit(ch)))
-                    ;
+                while ((ch = getchar()) != EOF && !isdigit(ch))
+                    if (ch == '\n')
+                        printf(input);
+                    else if (isspace(ch))
+                        continue;
+
                 if (ch == EOF)
                 {
                     freeset(&guessed);
                     return -1;
                 }
+
                 addtoset(guessed, ch);
             }
+            ch = getchar();     /* remove newline byte waiting in input buffer */
 
             /* compare the set of unique digits against the code */
             for (size_t i = 0; i < codelen; ++i)
@@ -171,7 +183,7 @@ int bullscows(unsigned short players, size_t codelen)
                     ++cows;
 
             /* inform the user of the result */
-            printf(" >> ");
+            printf(output);
             printf("%u bull", bulls);
             if (bulls != 1)
                 putchar('s');
